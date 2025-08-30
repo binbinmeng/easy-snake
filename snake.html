@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>嘴臭贪吃蛇 · 在线社死现场</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>
+        :root{
+            --bg:#111;
+            --panel:#222;
+            --text:#fff;
+            --accent:#0f0;
+            --danger:#f55;
+            font-family:"Segoe UI",Helvetica,Arial,sans-serif;
+        }
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{
+            background:var(--bg);
+            color:var(--text);
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            height:100vh;
+            flex-direction:column;
+        }
+        h1{
+            margin-bottom:10px;
+            font-size:2.2rem;
+            letter-spacing:2px;
+            background:linear-gradient(90deg,var(--accent),#0ff);
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+        }
+        #panel{
+            background:var(--panel);
+            padding:15px 25px;
+            border-radius:12px;
+            margin-bottom:15px;
+            display:flex;
+            gap:20px;
+            align-items:center;
+            box-shadow:0 0 15px #0f06;
+        }
+        label{font-size:1rem}
+        input[type=number]{
+            width:70px;
+            padding:5px;
+            border:none;
+            border-radius:4px;
+            text-align:center;
+            font-weight:bold;
+        }
+        button{
+            background:var(--accent);
+            color:#000;
+            border:none;
+            padding:8px 18px;
+            border-radius:6px;
+            font-weight:bold;
+            cursor:pointer;
+            transition:.3s;
+        }
+        button:hover{filter:brightness(1.2)}
+        #game{
+            position:relative;
+            width:400px;
+            height:400px;
+            background:#000;
+            border:2px solid var(--accent);
+            box-shadow:0 0 20px #0f09;
+        }
+        #timer{
+            position:absolute;
+            top:-30px;
+            right:0;
+            font-size:1.2rem;
+            color:var(--danger);
+        }
+        #board{
+            width:100%;
+            height:100%;
+            display:block;
+        }
+        #msg{
+            margin-top:15px;
+            font-size:1.3rem;
+            height:30px;
+            color:var(--danger);
+            text-shadow:0 0 8px currentColor;
+            animation:pulse .8s infinite alternate;
+        }
+        @keyframes pulse{from{opacity:.4}to{opacity:1}}
+    </style>
+</head>
+<body>
+    <h1>嘴臭贪吃蛇 · 在线社死现场</h1>
+
+    <div id="panel">
+        <label>倒计时（秒）
+            <input id="limit" type="number" min="10" max="300" value="30">
+        </label>
+        <button id="startBtn">开始丢脸</button>
+    </div>
+
+    <div id="game">
+        <span id="timer"></span>
+        <canvas id="board" width="400" height="400"></canvas>
+    </div>
+
+    <div id="msg"></div>
+
+    <script>
+        /* ========== 基本配置 ========== */
+        const SIZE   = 20;            // 一格 20px
+        const WIDTH  = 400 / SIZE;    // 棋盘宽 20 格
+        const HEIGHT = 400 / SIZE;    // 棋盘高 20 格
+
+        /* ========== 元素 ========== */
+        const canvas = document.getElementById('board');
+        const ctx      = canvas.getContext('2d');
+        const timerDom = document.getElementById('timer');
+        const msgDom   = document.getElementById('msg');
+        const startBtn = document.getElementById('startBtn');
+        const limitInp = document.getElementById('limit');
+
+        let snake,dir,food,score,gameTimer,countdown,loop;
+
+        /* ========== 嘲讽语料库 ========== */
+        const roasts = [
+            "菜是原罪，蛇都看不下去了！",
+            "时间到！你这条小蚯蚓原地解散～",
+            "就这？隔壁王奶奶都比你灵活！",
+            "倒计时结束，你的操作被系统判定为挂机。",
+            "蛇宝因你操作太下饭，已申请转生。"
+        ];
+
+        /* ========== 初始化 ========== */
+        startBtn.onclick = ()=>{
+            clearInterval(loop);
+            clearInterval(countdown);
+            init();
+        };
+
+        function init(){
+            snake = [{x:10,y:10}];
+            dir   = {x:0,y:0};
+            spawnFood();
+            score = 0;
+            msgDom.textContent='';
+            timerDom.textContent = '';
+            startBtn.blur();
+            draw();
+
+            // 倒计时
+            let left = parseInt(limitInp.value);
+            timerDom.textContent = left+'s';
+            countdown = setInterval(()=>{
+                left--;
+                timerDom.textContent = left+'s';
+                if(left<=0) gameOver();
+            },1000);
+
+            // 游戏循环
+            loop = setInterval(step,150);
+        }
+
+        /* ========== 移动 & 碰撞 ========== */
+        function step(){
+            if(dir.x===0 && dir.y===0) return; // 还没开局
+
+            const head = {x:snake[0].x+dir.x, y:snake[0].y+dir.y};
+
+            // 撞墙
+            if(head.x<0||head.x>=WIDTH||head.y<0||head.y>=HEIGHT){
+                return gameOver();
+            }
+            // 撞自己
+            if(snake.some(s=>s.x===head.x && s.y===head.y)){
+                return gameOver();
+            }
+
+            snake.unshift(head);
+            if(head.x===food.x && head.y===food.y){
+                score++;
+                spawnFood();
+            }else{
+                snake.pop();
+            }
+            draw();
+        }
+
+        /* ========== 画板 ========== */
+        function draw(){
+            ctx.fillStyle='#000';
+            ctx.fillRect(0,0,400,400);
+
+            // 画蛇
+            ctx.fillStyle='#0f0';
+            snake.forEach(({x,y})=>ctx.fillRect(x*SIZE,y*SIZE,SIZE,SIZE));
+
+            // 画食物
+            ctx.fillStyle='#f0f';
+            ctx.beginPath();
+            ctx.arc(food.x*SIZE+SIZE/2, food.y*SIZE+SIZE/2, SIZE/2, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        /* ========== 随机食物 ========== */
+        function spawnFood(){
+            do{
+                food = {
+                    x:Math.floor(Math.random()*WIDTH),
+                    y:Math.floor(Math.random()*HEIGHT)
+                };
+            }while(snake.some(s=>s.x===food.x && s.y===food.y));
+        }
+
+        /* ========== 结束 & 嘲讽 ========== */
+        function gameOver(){
+            clearInterval(loop);
+            clearInterval(countdown);
+            const roast = roasts[Math.floor(Math.random()*roasts.length)];
+            msgDom.textContent = roast;
+        }
+
+        /* ========== 键盘控制 ========== */
+        window.addEventListener('keydown',e=>{
+            switch(e.key){
+                case 'ArrowUp':    if(dir.y!==1)  dir={x:0,y:-1}; break;
+                case 'ArrowDown':  if(dir.y!==-1) dir={x:0,y:1};  break;
+                case 'ArrowLeft':  if(dir.x!==1)  dir={x:-1,y:0}; break;
+                case 'ArrowRight': if(dir.x!==-1) dir={x:1,y:0};  break;
+            }
+        });
+    </script>
+</body>
+</html>
